@@ -36,7 +36,9 @@ public class PlayerMovement : MonoBehaviour
     private Vector2 _moveInput;
     public float LastPressedJumpTime { get; private set; }
 
-    
+    private float _fallSpeedYDampingChangeThreshold; 
+
+
     [Header("Checks")]
     [SerializeField] private Transform _groundCheckPoint;
     
@@ -59,6 +61,11 @@ public class PlayerMovement : MonoBehaviour
     {
         SetGravityScale(Data.gravityScale);
         IsFacingRight = true;
+
+        if (CameraManager.instance != null)
+        {
+            _fallSpeedYDampingChangeThreshold = CameraManager.instance._fallSpeedYDampingChangeThreshold;
+        }
     }
 
     private void Update()
@@ -202,6 +209,24 @@ public class PlayerMovement : MonoBehaviour
             SetGravityScale(Data.gravityScale);
         }
         #endregion
+
+        if (CameraManager.instance != null)
+        {
+            if (RB.linearVelocity.y < _fallSpeedYDampingChangeThreshold
+                && !CameraManager.instance.IsLerpingYDamping
+                && !CameraManager.instance.LerpedFromPlayerFalling)
+            {
+                CameraManager.instance.LerpYDamping(true);
+            }
+
+            if (RB.linearVelocity.y >= 0f
+                && !CameraManager.instance.IsLerpingYDamping
+                && CameraManager.instance.LerpedFromPlayerFalling)
+            {
+                CameraManager.instance.LerpedFromPlayerFalling = false;
+                CameraManager.instance.LerpYDamping(false);
+            }
+        }
     }
 
     private void FixedUpdate()
