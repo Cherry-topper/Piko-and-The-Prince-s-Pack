@@ -18,8 +18,15 @@ public class CameraManager : MonoBehaviour
 
     private Coroutine _lerpYPanCoroutine;
 
+    private Coroutine _panCameraCoroutine;
+
+    private GameObject _currentCamera;
     private Component _positionComposer;
     private FieldInfo _dampingField;
+
+    private System.Reflection.FieldInfo _targetOffsetField;
+    private Vector3 _startingTrackedObjectOffset;
+
     private float _normYPanAmount;
 
     private void Awake()
@@ -33,11 +40,12 @@ public class CameraManager : MonoBehaviour
         {
             if (_allVirtualCameras[i].activeInHierarchy)
             {
-                _positionComposer = FindComponentByName(_allVirtualCameras[i], "CinemachinePositionComposer");
+                _currentCamera = _allVirtualCameras[i];
+                _positionComposer = FindComponentByName(_currentCamera, "CinemachinePositionComposer");
 
                 if (_positionComposer == null)
                 {
-                    Debug.LogError("No CinemachinePositionComposer found on " + _allVirtualCameras[i].name);
+                    Debug.LogError("No CinemachinePositionComposer found on " + _currentCamera.name);
                     return;
                 }
 
@@ -49,7 +57,21 @@ public class CameraManager : MonoBehaviour
                     return;
                 }
 
+                _targetOffsetField = _positionComposer.GetType().GetField("TargetOffset");
+
+                if (_targetOffsetField == null)
+                {
+                    _targetOffsetField = _positionComposer.GetType().GetField("m_TrackedObjectOffset");
+                }
+
+                if (_targetOffsetField == null)
+                {
+                    Debug.LogError("Could not find TargetOffset or m_TrackedObjectOffset on " + _positionComposer.GetType().Name);
+                    return;
+                }
+
                 _normYPanAmount = GetYDamping();
+                _startingTrackedObjectOffset = GetTrackedObjectOffset();
                 return;
             }
         }
@@ -129,4 +151,126 @@ public class CameraManager : MonoBehaviour
 
         return null;
     }
+
+    #region Pan Camera
+
+    public void PanCameraOnContact(float panDistance, float panTime, PanDirection panDirection, bool panToStartingPos)
+    {
+        if (_positionComposer == null || _targetOffsetField == null)
+        {
+            return;
+        }
+
+        if (_panCameraCoroutine != null)
+        {
+            StopCoroutine(_panCameraCoroutine);
+        }
+
+        _panCameraCoroutine = StartCoroutine(PanCamera(panDistance, panTime, panDirection, panToStartingPos));
+    }
+
+    private IEnumerator PanCamera(float panDistance, float panTime, PanDirection panDirection, bool panToStartingPos)
+    {
+        Vector3 endPos = Vector3.zero;
+        Vector3 startingPos = Vector3.zero;
+
+        if (!panToStartingPos)
+        {
+            switch (panDirection)
+            {
+                case PanDirection.Up:
+                    endPos = Vector3.up;
+                    break;
+
+                case PanDirection.Down:
+                    endPos = Vector3.down;
+                    break;
+
+                case PanDirection.Left:
+                    endPos = Vector3.right;
+                    break;
+
+                case PanDirection.Right:
+                    endPos = Vector3.left;
+                    break;
+            }
+
+            endPos *= panDistance;
+            startingPos = _startingTrackedObjectOffset;
+            endPos += startingPos;
+        }
+        else
+        {
+            startingPos = GetTrackedObjectOffset();
+            endPos = _startingTrackedObjectOffset;
+        }
+
+        float elapsedTime = 0f;
+
+        while (elapsedTime < panTime)
+        {
+            elapsedTime += Time.deltaTime;
+
+            Vector3 panLerp = Vector3.Lerp(startingPos, endPos, elapsedTime / panTime);
+            SetTrackedObjectOffset(panLerp);
+
+            yield return null;
+        }
+    }
+
+    private Vector3 GetTrackedObjectOffset()
+    {
+        return (Vector3)_targetOffsetField.GetValue(_positionComposer);
+    }
+
+    private void SetTrackedObjectOffset(Vector3 offset)
+    {
+        _targetOffsetField.SetValue(_positionComposer, offset);
+    }
+
+    #endregion
+
+    #region Swap Cameras
+
+    public void SwapCamera(GameObject cameraFromLeft, GameObject cameraFromRight, Vector2 triggerExitDirection)
+    {
+        if (_currentCamera == cameraFromLeft && triggerExitDirection.x > 0f)
+        {
+            cameraFromRight.SetActive(true);
+            cameraFromLeft.SetActive(false);
+
+            SetCurrentCamera(cameraFromRight);
+        }
+        else if (_currentCamera == cameraFromRight && triggerExitDirection.x < 0f)
+        {
+            cameraFromLeft.SetActive(true);
+            cameraFromRight.SetActive(false);
+
+            SetCurrentCamera(cameraFromLeft);
+        }
+    }
+
+    private void SetCurrentCamera(GameObject newCamera)
+    {
+        _currentCamera = newCamera;
+        _positionComposer = FindComponentByName(_currentCamera, "CinemachinePositionComposer");
+
+        if (_positionComposer == null)
+        {
+            Debug.LogError("No CinemachinePositionComposer found on " + _currentCamera.name);
+            return;
+        }
+
+        _dampingField = _positionComposer.GetType().GetField("Damping");
+        _targetOffsetField = _positionComposer.GetType().GetField("TargetOffset");
+
+        if (_targetOffsetField == null)
+        {
+            _targetOffsetField = _positionComposer.GetType().GetField("m_TrackedObjectOffset");
+        }
+
+        _startingTrackedObjectOffset = GetTrackedObjectOffset();
+    }
+
+    #endregion
 }
