@@ -79,6 +79,13 @@ public class PlayerMovement : MonoBehaviour
         LastPressedJumpTime -= Time.deltaTime;
         #endregion
 
+        if (DialogueManager.Instance != null && DialogueManager.Instance.IsDialogueActive)
+        {
+            _moveInput = Vector2.zero;
+            LastPressedJumpTime = 0;
+            return;
+        }
+
         #region INPUT HANDLER
         _moveInput.x = Input.GetAxisRaw("Horizontal");
         _moveInput.y = Input.GetAxisRaw("Vertical");
@@ -231,6 +238,12 @@ public class PlayerMovement : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (DialogueManager.Instance != null && DialogueManager.Instance.IsDialogueActive)
+        {
+            RB.linearVelocity = new Vector2(0f, RB.linearVelocity.y);
+            return;
+        }
+
        
         if (IsWallJumping)
             Run(Data.wallJumpRunLerp);

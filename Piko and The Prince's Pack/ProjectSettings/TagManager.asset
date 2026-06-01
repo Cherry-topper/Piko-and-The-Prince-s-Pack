@@ -3,7 +3,8 @@
 --- !u!78 &1
 TagManager:
   serializedVersion: 3
-  tags: []
+  tags:
+  - Environment
   layers:
   - Default
   - TransparentFX
@@ -46,6 +47,9 @@ TagManager:
     locked: 0
   - name: platform
     uniqueID: 4279287813
+    locked: 0
+  - name: environment
+    uniqueID: 3509604127
     locked: 0
   m_RenderingLayers:
   - Default
